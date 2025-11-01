@@ -8,18 +8,73 @@ const nextText = document.getElementById('next-weight'); // weight created with 
 const resetBtn = document.getElementById('reset'); // reset button
 const logContainer = document.getElementById('log-container'); // contains logs
 
-//get objects array from localstorage or make a new empty one
-let objects = JSON.parse(localStorage.getItem('objects')) || [];//array that holds obj on plank 
-//get logs array from localstorage or make a new empty one
+//get objects array from localstorage, or make a new empty one
+let objects = JSON.parse(localStorage.getItem('objects')) || [];// array that holds objects on plank 
+//get logs array from localstorage, or make a new empty one
 let logs = JSON.parse(localStorage.getItem('logs')) || [];
 
-//a variable to hold the preview object
+//colors
+const objectColors = [
+  '#e11d48', //rose
+  '#f97316', //orange
+  '#22c55e', //green
+  '#0ea5e9', //sky
+  '#8b5cf6'  //violet
+];
+
+const soundContext = new (window.AudioContext || window.webkitAudioContext)(); // sound effect for dropping objects
+
+//sound effect function
+function dropSound() {
+  const sound = soundContext.createOscillator(); //infinite beep sound
+  const soundController = soundContext.createGain(); //layer for sound and destintion speker main reason control the infinite beep sound
+
+  sound.type = 'triangle'; //sound effect
+  sound.frequency.setValueAtTime(300, soundContext.currentTime); //pitch
+  soundController.gain.setValueAtTime(0.3, soundContext.currentTime); //sets volume %30
+
+ 
+  soundController.gain.exponentialRampToValueAtTime(0.01, soundContext.currentTime + 0.2); //closes the sound slowly
+
+  sound.connect(soundController); //connecting sound to our soundcontroller so sound doesnt go directly to our speakers
+  soundController.connect(soundContext.destination); //connects our soundcontroller to speaker with our object
+  
+  sound.start(soundContext.currentTime);//starts the sound
+  sound.stop(soundContext.currentTime + 0.2); //stops the sound after 0.2 sec
+}
+
+//sound effect function for tilt angle +30 -30 
+function HitSound() {
+  const sound = soundContext.createOscillator();//infinite beep sound
+  const soundController = soundContext.createGain();//layer for sound and destintion speker main reason control the infinite beep sound
+  
+  sound.type = 'square'; //more bass sound than triangle its like bzzzz
+  sound.frequency.setValueAtTime(80, soundContext.currentTime); //low pitch warning sound
+  soundController.gain.setValueAtTime(0.2, soundContext.currentTime); //sets %20
+
+  soundController.gain.exponentialRampToValueAtTime(0.01, soundContext.currentTime + 0.1); //it closes the sound very quick
+
+  sound.connect(soundController); //connecting sound to our soundcontroller so sound doesnt go directly to our speakers
+  soundController.connect(soundContext.destination); //connects our soundcontroller to speaker with our object
+  
+  sound.start(soundContext.currentTime);
+  sound.stop(soundContext.currentTime + 0.1); //0.1 sec
+}
+
+let isAtLimit = false; //false because gets true when angle +30 -30 
+
+//preview elements
 let previewObj = null;
-//a variable to hold the preview line
 let previewLine = null;
 
 //click event 
 plank.addEventListener('click', (e) => {
+  //sound call statement !! resume allows the user start the effect
+  if (soundContext.state === 'suspended') {
+    soundContext.resume();
+  }
+  dropSound(); //every click plays the sound
+  
   //getting x coordinate of the clicked place e.offsetX gives us to us
   const x = e.offsetX;
   
@@ -75,7 +130,6 @@ resetBtn.addEventListener('click', () => {
   calculateTilt();
 });
 
-
 //main function for calculation
 function calculateTilt() {
   
@@ -110,6 +164,14 @@ function calculateTilt() {
   //limiting the angle between -30 +30 and doc formula (rightTorque - leftTorque) / 10 (too steep), I used 100 for better tilt
   const angle = Math.max(-30, Math.min(30, torqueDifference / 100));
 
+const justHitLimit = (angle === 30 || angle === -30);
+  if (justHitLimit && !isAtLimit) {
+    //plays the sound the tilt angle gets +30 -30
+    HitSound();
+  }
+  //update for next hit
+  isAtLimit = justHitLimit;
+
   //with calculated angle slide the plank
   plank.style.transform = `translateX(-50%) rotate(${angle}deg)`;
 
@@ -141,35 +203,34 @@ function createObjectPlank(x, weight, animate = true) {
   //for center the obj on the where click 
   objElement.style.left = `${x - size / 2}px`;
 
-  //change the color left or right
-  objElement.style.background = x < 200 ? '#eab308' : '#3b82f6';
+  //changed feature !! now randomly choosing color
+  const randomColor = objectColors[Math.floor(Math.random() * objectColors.length)];
+  objElement.style.background = randomColor;
   
   //for the rotation with the plank I added to the plank 
   plank.appendChild(objElement);
 
   //animation logic
   const plankHeight = 20; //plank height in styles.css
-  const objectPosition = `${plankHeight}px`; //last position on the plank
+  const objectBottomPosition = `${plankHeight}px`; //last position on the plank
 
   if (animate) {
     //if animated like first time the balls drops start at 300px in css wait 10ms and setting the final position up 20px bottom 
     setTimeout(() => {
-      objElement.style.bottom = objectPosition;
+      objElement.style.bottom = objectBottomPosition;
     }, 10);
   } else {
     //if there is no animation like refresh the page then put the object where it stands before refreshing
-    objElement.style.bottom = objectPosition;
+    objElement.style.bottom = objectBottomPosition;
   }
 }
-
 //add a new log entry to the html
 function addLogToDOM(log) {
   const logElement = document.createElement('p');
   logElement.classList.add('log-entry');
-  logElement.textContent = `📦 ${log.weight}kg dropped on ${log.side} side at ${Math.round(log.distance)}px from center`;//text structure for logs
+  logElement.textContent = `📦 ${log.weight}kg dropped on ${log.side} side at ${Math.round(log.distance)}px from center`;
   logContainer.prepend(logElement); //add to top of the list
 }
-
 //draws old logs on page load
 function renderLogs() {
   logContainer.innerHTML = ''; //clear old logs
@@ -179,60 +240,58 @@ function renderLogs() {
 }
 
 //draws old objects on page load and draws each using createObjectPlank
-function renderObjects() {
+function renderObject() {
   objects.forEach(obj => {
-  //with false paramter I dont allow animation because page reloaded
+    //with false paramter I dont allow animation because page reloaded
     createObjectPlank(obj.x, obj.weight, false);
   });
 }
 
-//watches mouse movements on plank
+//watch mouse movements on plank
 plank.addEventListener('mousemove', (e) => {
   const x = e.offsetX; //gets mouse position x on plank
   const weight = parseFloat(nextText.textContent); //gets nextweight value for simulate gets better
   const size = 30 + weight * 2; //same as the objects for accuricy
-
-  
   const plankLeftOffset = 100; //600 - 400 / 2
 
   //previewobject !! if there is no prewobj creates it
   if (!previewObj) {
     previewObj = document.createElement('div');
     previewObj.classList.add('preview-object');
-    area.appendChild(previewObj); //adds it to the gray area
+    area.appendChild(previewObj); // add it to the grey area
   }
-  //updates preview obj properties on mouse moves
+  //update preview obj properties on every mouse move
   previewObj.textContent = `${weight}kg`;
   previewObj.style.width = `${size}px`;
   previewObj.style.height = `${size}px`;
   previewObj.style.lineHeight = `${size}px`;
-  previewObj.style.left = `${plankLeftOffset + x - (size / 2)}px`; //same logic as createObjectPlank to center obj
+  previewObj.style.left = `${plankLeftOffset + x - (size / 2)}px`;//same logic as createObjectPlank to center obj
   previewObj.style.opacity = '1'; //making visible
 
   //previewline !! if there is no preview line null create it
   if (!previewLine) {
     previewLine = document.createElement('div');
     previewLine.classList.add('preview-line');
-    area.appendChild(previewLine); //adds it to the gray area
+    area.appendChild(previewLine); //add it to the grey area
   }
-  //match line with objects center
+  
+  //match line's x position with objects center
   previewLine.style.left = `${plankLeftOffset + x}px`;
   
   //.preview-object 'bottom: 260px .board-plank 'bottom: 200px for calculating line position
-  previewLine.style.bottom = '200px'; //start from up of plank
-  previewLine.style.height = '60px'; //(220px - 200px)
+  previewLine.style.bottom = '200px'; //start from top of plank
+  previewLine.style.height = '60px'; //line height 260px - 200px  60px
   previewLine.style.top = 'auto'; //top:0 diasabled with this
-  previewLine.style.opacity = '1'; //makes it visible
+  previewLine.style.opacity = '1'; //make it visible
 });
 
 //when mouse leaves on the plank preview dissapear
 plank.addEventListener('mouseleave', () => {
   if (previewObj) {
-    previewObj.style.opacity = '0'; //if exists hide the ball
+    previewObj.style.opacity = '0'; //if previewObj exists hide the ball
   }
- 
   if (previewLine) {
-    previewLine.style.opacity = '0'; //if exists hide the line
+    previewLine.style.opacity = '0'; //if previewLine exists hide the line
   }
 });
 
@@ -240,7 +299,7 @@ plank.addEventListener('mouseleave', () => {
 nextText.textContent = localStorage.getItem('nextWeight') || Math.floor(Math.random() * 10) + 1;
 
 //draw all objects from memory
-renderObjects();
+renderObject();
 
 //draw all logs from memory
 renderLogs();
