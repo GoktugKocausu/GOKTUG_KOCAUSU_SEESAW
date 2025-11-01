@@ -8,12 +8,15 @@ const nextText = document.getElementById('next-weight'); // weight created with 
 const resetBtn = document.getElementById('reset'); // reset button
 const logContainer = document.getElementById('log-container'); // contains logs
 
-//get objects array from localstorage, or make a new empty one
-let objects = JSON.parse(localStorage.getItem('objects')) || [];// array that holds objects on plank 
-
-//I defined new array for logs to memory
+//get objects array from localstorage or make a new empty one
+let objects = JSON.parse(localStorage.getItem('objects')) || [];//array that holds obj on plank 
+//get logs array from localstorage or make a new empty one
 let logs = JSON.parse(localStorage.getItem('logs')) || [];
 
+//a variable to hold the preview object
+let previewObj = null;
+//a variable to hold the preview line
+let previewLine = null;
 
 //click event 
 plank.addEventListener('click', (e) => {
@@ -30,17 +33,18 @@ plank.addEventListener('click', (e) => {
   objects.push(newObject);
   
   //call the function to draw the obj on the plank
-  //with true parameters I allow to frop animation
+  //with true parameters I allow to drop animation
   createObjectPlank(x, weight, true);
 
+  //log entry for every click
   const pivotX = 200;
   const side = x < pivotX ? 'left' : 'right';
   const distance = Math.abs(x - pivotX);
   
-  //for logs added weight side and distance
+  //make a new log obj
   const newLog = { weight, side, distance };
-  logs.unshift(newLog); 
-  addLogToDOM(newLog);
+  logs.unshift(newLog); //add log to start of the array
+  addLogToDOM(newLog); //add log to html
 
   //call function to draw the object on the plank
   calculateTilt();
@@ -57,16 +61,15 @@ plank.addEventListener('click', (e) => {
 resetBtn.addEventListener('click', () => {
   //clears the memory
   objects = [];
-  logs = [];
+  logs = []; //clear logs from memory
 
   //clears the localStorage
   localStorage.removeItem('objects');
   localStorage.removeItem('nextWeight'); //clears the next weight
-  localStorage.removeItem('logs');// clears the logs
-
+  localStorage.removeItem('logs'); //clear logs from storage
   
   plank.innerHTML = ''; //for clear the board deletes on the plank
-  logContainer.innerHTML = '';
+  logContainer.innerHTML = ''; //clear logs from html
 
   //recall the function for starting again
   calculateTilt();
@@ -114,11 +117,10 @@ function calculateTilt() {
   angleText.textContent = angle.toFixed(1);
 
   //update localstorage every time state changes
-  //every time calculateTilt runs saves the current objects array and also logs
+  //every time calculateTilt runs saves the current objects array
   localStorage.setItem('objects', JSON.stringify(objects));
-  localStorage.setItem('logs', JSON.stringify(logs));
+  localStorage.setItem('logs', JSON.stringify(logs)); //save logs to storage
 }
-
 
 //I updated the function true for animation 
 function createObjectPlank(x, weight, animate = true) {
@@ -147,53 +149,101 @@ function createObjectPlank(x, weight, animate = true) {
 
   //animation logic
   const plankHeight = 20; //plank height in styles.css
-  const objectBottomPosition = `${plankHeight}px`; //last position on the plank
+  const objectPosition = `${plankHeight}px`; //last position on the plank
 
   if (animate) {
     //if animated like first time the balls drops start at 300px in css wait 10ms and setting the final position up 20px bottom 
     setTimeout(() => {
-      objElement.style.bottom = objectBottomPosition;
+      objElement.style.bottom = objectPosition;
     }, 10);
   } else {
     //if there is no animation like refresh the page then put the object where it stands before refreshing
-    objElement.style.bottom = objectBottomPosition;
+    objElement.style.bottom = objectPosition;
   }
 }
 
-//adds one log entry to the log screen
+//add a new log entry to the html
 function addLogToDOM(log) {
   const logElement = document.createElement('p');
   logElement.classList.add('log-entry');
-  logElement.textContent = `📦 ${log.weight}kg dropped on ${log.side} side at ${Math.round(log.distance)}px from center`;
-  logContainer.prepend(logElement); //prepend adds it to the top
+  logElement.textContent = `📦 ${log.weight}kg dropped on ${log.side} side at ${Math.round(log.distance)}px from center`;//text structure for logs
+  logContainer.prepend(logElement); //add to top of the list
 }
 
-//draws all logs from memory when page refresh
-function renderInitialLogs() {
-  logContainer.innerHTML = ''; //clears
-  logs.forEach(log => { //loop for adding them
+//draws old logs on page load
+function renderLogs() {
+  logContainer.innerHTML = ''; //clear old logs
+  logs.forEach(log => {
     addLogToDOM(log);
   });
 }
 
-
 //draws old objects on page load and draws each using createObjectPlank
-function renderInitialObjects() {
+function renderObjects() {
   objects.forEach(obj => {
-    //with false paramter I dont allow animation because page reloaded
+  //with false paramter I dont allow animation because page reloaded
     createObjectPlank(obj.x, obj.weight, false);
   });
 }
 
+//watches mouse movements on plank
+plank.addEventListener('mousemove', (e) => {
+  const x = e.offsetX; //gets mouse position x on plank
+  const weight = parseFloat(nextText.textContent); //gets nextweight value for simulate gets better
+  const size = 30 + weight * 2; //same as the objects for accuricy
 
+  
+  const plankLeftOffset = 100; //600 - 400 / 2
 
+  //previewobject !! if there is no prewobj creates it
+  if (!previewObj) {
+    previewObj = document.createElement('div');
+    previewObj.classList.add('preview-object');
+    area.appendChild(previewObj); //adds it to the gray area
+  }
+  //updates preview obj properties on mouse moves
+  previewObj.textContent = `${weight}kg`;
+  previewObj.style.width = `${size}px`;
+  previewObj.style.height = `${size}px`;
+  previewObj.style.lineHeight = `${size}px`;
+  previewObj.style.left = `${plankLeftOffset + x - (size / 2)}px`; //same logic as createObjectPlank to center obj
+  previewObj.style.opacity = '1'; //making visible
+
+  //previewline !! if there is no preview line null create it
+  if (!previewLine) {
+    previewLine = document.createElement('div');
+    previewLine.classList.add('preview-line');
+    area.appendChild(previewLine); //adds it to the gray area
+  }
+  //match line with objects center
+  previewLine.style.left = `${plankLeftOffset + x}px`;
+  
+  //.preview-object 'bottom: 260px .board-plank 'bottom: 200px for calculating line position
+  previewLine.style.bottom = '200px'; //start from up of plank
+  previewLine.style.height = '60px'; //(220px - 200px)
+  previewLine.style.top = 'auto'; //top:0 diasabled with this
+  previewLine.style.opacity = '1'; //makes it visible
+});
+
+//when mouse leaves on the plank preview dissapear
+plank.addEventListener('mouseleave', () => {
+  if (previewObj) {
+    previewObj.style.opacity = '0'; //if exists hide the ball
+  }
+ 
+  if (previewLine) {
+    previewLine.style.opacity = '0'; //if exists hide the line
+  }
+});
 
 //nextWeight from memory if none make a new one
 nextText.textContent = localStorage.getItem('nextWeight') || Math.floor(Math.random() * 10) + 1;
 
 //draw all objects from memory
-renderInitialObjects();
-renderInitialLogs();
+renderObjects();
+
+//draw all logs from memory
+renderLogs();
 
 //calc initial tilt based on loaded objects
 calculateTilt();
