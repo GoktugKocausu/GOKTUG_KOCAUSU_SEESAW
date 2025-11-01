@@ -44,7 +44,7 @@ function dropSound() {
 }
 
 //sound effect function for tilt angle +30 -30 
-function HitSound() {
+function hitSound() {
   const sound = soundContext.createOscillator();//infinite beep sound
   const soundController = soundContext.createGain();//layer for sound and destintion speker main reason control the infinite beep sound
   
@@ -167,7 +167,7 @@ function calculateTilt() {
 const justHitLimit = (angle === 30 || angle === -30);
   if (justHitLimit && !isAtLimit) {
     //plays the sound the tilt angle gets +30 -30
-    HitSound();
+    hitSound();
   }
   //update for next hit
   isAtLimit = justHitLimit;
